@@ -1,1 +1,488 @@
-rsfmri
+#!/bin/env/python
+
+import nipype.interfaces.fsl as fsl          # fsl
+from nipype.algorithms.misc import TSNR
+import nipype.interfaces.utility as util     # utility
+import nipype.pipeline.engine as pe          # pypeline engine
+import nipype.algorithms.rapidart as ra      # artifact detection
+import nipype.interfaces.io as nio             	# i/o routines
+import nibabel as nb
+from nipype.interfaces import spm
+import nipype.interfaces.freesurfer as fs
+
+
+subjects_dir = '/Volumes/lashley/ABIDE.01/'
+
+#subjects_list = ['A00032018']
+subjects_list = ['A00032016','A00032017','A00032018','A00032019','A00032020','A00032021','A00032022','A00032023','A00032024','A00032025','A00032026','A00032027','A00032028','A00032029','A00032030','A00032031','A00032032','A00032033','A00032034','A00032035','A00032036','A00032037','A00032038','A00032039','A00032040','A00032041','A00032042','A00032043','A00032044','A00032045','A00032046','A00032047','A00032048','A00032049','A00032050','A00032051','A00032052','A00032053','A00032054','A00032055','A00032056','A00032057','A00032058','A00032059','A00032060','A00032061','A00032062','A00032064','A00032065','A00032066','A00032067','A00032068','A00032069','A00032070','A00032071','A00032072','A00032073','A00032074','A00032075','A00032076','A00032077','A00032078','A00032079','A00032080','A00032081','A00032082','A00032083','A00032084','A00032085','A00032086','A00032087','A00032088','A00032089','A00032090','A00032091','A00032092','A00032093','A00032094','A00032095','A00032096','A00032097','A00032098','A00032099','A00032100','A00032101','A00032102','A00032103','A00032104','A00032105','A00032106','A00032107','A00032108','A00032109','A00032110','A00032111','A00032112','A00032113','A00032114','A00032115','A00032116','A00032117','A00032118','A00032119','A00032120','A00032121','A00032122','A00032123','A00032124','A00032125','A00032126','A00032127','A00032128','A00032129','A00032130','A00032131','A00032132','A00032133','A00032134','A00032135','A00032136','A00032137','A00032138','A00032139','A00032140','A00032141','A00032143','A00032144','A00032145','A00032146','A00032147','A00032148','A00032149','A00032150','A00032151','A00032152','A00032153','A00032154','A00032155','A00032156','A00032157','A00032158','A00032159','A00032160','A00032161','A00032162','A00032163','A00032164','A00032165','A00032166','A00032167','A00032168','A00032169','A00032170','A00032171','A00032172','A00032173','A00032174','A00032175','A00032176','A00032177','A00032178','A00032179','A00032180','A00032181','A00032182','A00032183','A00032184','A00032185','A00032186','A00032187','A00032188','A00032189','A00032190','A00032191','A00032192','A00032193','A00032194','A00032195','A00032196','A00032197','A00032198','A00032199','A00032200','A00032201','A00032202','A00032203','A00032204','A00032205','A00032206','A00032207','A00032208','A00032209','A00032210','A00032211','A00032212','A00032213','A00032214','A00032215','A00032216','A00032217','A00032219','A00032220','A00032221','A00032222','A00032223','A00032224','A00032225','A00032226','A00032227','A00032228','A00032229','A00032230','A00032231','A00032232','A00032233','A00032234','A00032235','A00032236','A00032237','A00032238','A00032239','A00032240','A00032241','A00032242','A00032243','A00032244','A00032245','A00032246','A00032247','A00032248','A00032249','A00032250','A00032251','A00032252','A00032253','A00032254','A00032255','A00032256','A00032257','A00032258','A00032259','A00032260','A00032261','A00032262','A00032263','A00032264','A00032265','A00032266','A00032267','A00032268','A00032269','A00032270','A00032271','A00032272','A00032273','A00032274','A00032275','A00032276','A00032277','A00032278','A00032279','A00032280','A00032281','A00032282','A00032283','A00032284','A00032285','A00032286','A00032287','A00032288','A00032289','A00032290','A00032291','A00032292','A00032293','A00032294','A00032295','A00032296','A00032297','A00032298','A00032299','A00032300','A00032301','A00032302','A00032303','A00032304','A00032305','A00032306','A00032307','A00032308','A00032309','A00032310','A00032311','A00032312','A00032313','A00032314','A00032315','A00032316','A00032317','A00032318','A00032319','A00032320','A00032321','A00032322','A00032323','A00032324','A00032325','A00032326','A00032327','A00032328','A00032329','A00032330','A00032331','A00032332','A00032333','A00032334','A00032335','A00032336','A00032337','A00032338','A00032339','A00032340','A00032341','A00032342','A00032343','A00032344','A00032345','A00032346','A00032347','A00032348','A00032349','A00032350','A00032351','A00032352','A00032353','A00032354','A00032355','A00032356','A00032357','A00032358','A00032359','A00032360','A00032361','A00032362','A00032363','A00032364','A00032365','A00032366','A00032367','A00032368','A00032369','A00032370','A00032371','A00032372','A00032373','A00032374','A00032375','A00032376','A00032377','A00032378','A00032379','A00032380','A00032381','A00032382','A00032383','A00032384','A00032385','A00032386','A00032387','A00032388','A00032389','A00032390','A00032391','A00032392','A00032393','A00032394','A00032395','A00032396','A00032397','A00032398','A00032399','A00032400','A00032401','A00032402','A00032403','A00032404','A00032405','A00032406','A00032407','A00032408','A00032409','A00032410','A00032411','A00032412','A00032413','A00032414','A00032415','A00032416','A00032417','A00032418','A00032419','A00032420','A00032421','A00032422','A00032423','A00032424','A00032425','A00032426','A00032427','A00032428','A00032429','A00032430','A00032431','A00032432','A00032433','A00032434','A00032435','A00032436','A00032437','A00032438','A00032439','A00032440','A00032441','A00032442','A00032443','A00032444','A00032445','A00032446','A00032447','A00032448','A00032449','A00032450','A00032451','A00032452','A00032453','A00032454','A00032455','A00032456','A00032457','A00032458','A00032459','A00032460','A00032461','A00032462','A00032463','A00032464','A00032465','A00032466','A00032467','A00032468','A00032469','A00032470','A00032471','A00032472','A00032473','A00032474','A00032475','A00032476','A00032477','A00032478','A00032479','A00032480','A00032481','A00032482','A00032483','A00032484','A00032485','A00032486','A00032487','A00032488','A00032489','A00032490','A00032491','A00032492','A00032493','A00032494','A00032495','A00032496','A00032497','A00032498','A00032499','A00032500','A00032501','A00032502','A00032503','A00032504','A00032505','A00032506','A00032507','A00032508','A00032509','A00032510','A00032511','A00032512','A00032513','A00032514','A00032515','A00032516','A00032517','A00032518','A00032519','A00032520','A00032521','A00032522','A00032523','A00032524','A00032525','A00032526','A00032527','A00032528','A00032529','A00032530','A00032531','A00032532','A00032533','A00032534','A00032535','A00032536','A00032537','A00032538','A00032539','A00032540','A00032541','A00032542','A00032543','A00032544','A00032545','A00032546','A00032547','A00032548','A00032549','A00032550','A00032551','A00032552','A00032553','A00032554','A00032555','A00032556','A00032557','A00032558','A00032559','A00032560','A00032561','A00032562','A00032563','A00032564','A00032565','A00032566','A00032567','A00032568','A00032569','A00032570','A00032571','A00032572','A00032573','A00032574','A00032575','A00032576','A00032578','A00032579','A00032580','A00032581','A00032582','A00032583','A00032584','A00032585','A00032586','A00032587','A00032588','A00032589','A00032590','A00032591','A00032592','A00032593','A00032594','A00032595','A00032596','A00032597','A00032598','A00032599','A00032600','A00032601','A00032602','A00032603','A00032604','A00032605','A00032606','A00032607','A00032608','A00032609','A00032610','A00032611','A00032612','A00032613','A00032614','A00032615','A00032616','A00032617','A00032618','A00032619','A00032620','A00032621','A00032622','A00032623','A00032624','A00032625','A00032626','A00032627','A00032628','A00032629','A00032630','A00032631','A00032632','A00032633','A00032634','A00032635','A00032636','A00032637','A00032638','A00032639','A00032640','A00032641','A00032642','A00032643','A00032644','A00032645','A00032646','A00032647','A00032648','A00032653','A00032654','A00032655','A00032656','A00032657','A00032658','A00032659','A00032660','A00032661','A00032662','A00032663','A00032664','A00032665','A00032666','A00032667','A00032668','A00032669','A00032670','A00032671','A00032672','A00032673','A00032674','A00032675','A00032676','A00032677','A00032678','A00032679','A00032680','A00032681','A00032682','A00032683','A00032684','A00032685','A00032686','A00032687','A00032688','A00032689','A00032690','A00032691','A00032692','A00032693','A00032694','A00032695','A00032696','A00032697','A00032698','A00032699','A00032700','A00032701','A00032702','A00032703','A00032704','A00032705','A00032706','A00032709','A00032710','A00032711','A00032712','A00032713','A00032714','A00032715','A00032721','A00032722','A00032723','A00032724','A00032725','A00032726','A00032727','A00032728','A00032729','A00032730','A00032731','A00032732','A00032733','A00032734','A00032735','A00032736','A00032737','A00032738','A00032739','A00032740','A00032741','A00032743','A00032744','A00032745','A00032746','A00032747','A00032748','A00032749','A00032750','A00032751','A00032752','A00032753','A00032754','A00032755','A00032756','A00032757','A00032758','A00032759','A00032760','A00032761','A00032762','A00032763','A00032764','A00032765','A00032766','A00032767','A00032768','A00032769','A00032770','A00032771','A00032772','A00032773','A00032774','A00032775','A00032776','A00032777','A00032778','A00032779','A00032780','A00032781','A00032782','A00032783','A00032784','A00032785','A00032786','A00032787','A00032788','A00032789','A00032790','A00032791','A00032792','A00032793','A00032794','A00032795','A00032796','A00032797','A00032798','A00032799','A00032800','A00032801','A00032803','A00032804','A00032805','A00032806','A00032807','A00032808','A00032809','A00032810','A00032811','A00032812','A00032813','A00032814','A00032815','A00032816','A00033257','A00033258','A00033259','A00033260','A00033261','A00033262','A00033263','A00033264','A00033265','A00033266','A00033267','A00033268','A00033269','A00033270','A00033271','A00033272','A00033273','A00033274','A00033275','A00033276','A00033277','A00033278','A00033279','A00033280','A00033281','A00033282','A00033283','A00033284','A00033285','A00033286','A00033287','A00033288','A00033289','A00033290','A00033291','A00033292','A00033293','A00033294','A00033295','A00033296','A00033297','A00033298','A00033299','A00033300','A00033301','A00033302','A00033303','A00033304','A00033305','A00033306','A00033307','A00033308','A00033309','A00033310','A00033311','A00033312','A00033313','A00033314','A00033315','A00033316','A00033317','A00033318','A00033319','A00033320','A00033321','A00033322','A00033323','A00033324','A00033325','A00033326','A00033327','A00033328','A00033329','A00033330','A00033331','A00033332','A00033333','A00033334','A00033335','A00033336','A00033337','A00033338','A00033339','A00033340','A00033341','A00033342','A00033343','A00033344','A00033345','A00033346','A00033347','A00033348','A00033349','A00033350','A00033351','A00033352','A00033353','A00033354','A00033355','A00033356','A00033357','A00033358','A00033359','A00033360','A00033361','A00033362','A00033363','A00033364','A00033365','A00033366','A00033367','A00033368','A00033369','A00033370','A00033371','A00033372','A00033373','A00033374','A00033375','A00033376','A00033377','A00033378','A00033379','A00033380','A00033381','A00033382','A00033383','A00033384','A00033385','A00033386','A00033387','A00033388','A00033389','A00033390','A00033391','A00033392','A00033393','A00033394','A00033395','A00033396','A00033397','A00033398','A00033399','A00033400','A00033401','A00033402','A00033403','A00033404','A00033405','A00033406','A00033407','A00033408','A00033409','A00033410','A00033411','A00033412','A00033413','A00033414','A00033415','A00033416','A00033417','A00033418','A00033419','A00033420','A00033421','A00033422','A00033423','A00033424','A00033425','A00033426','A00033427','A00033428','A00033429','A00033430','A00033431','A00033432','A00033433','A00033434','A00033435','A00033436','A00033437','A00033438','A00033439','A00033440','A00033441','A00033442','A00033443','A00033444','A00033445','A00033446','A00033447','A00033448','A00033449','A00033450','A00033451','A00033452','A00033453','A00033454','A00033455','A00033456','A00033457','A00033458','A00033459','A00033460','A00033461','A00033462','A00033463','A00033464','A00033465','A00033466','A00033467','A00033468','A00033469','A00033470','A00033471','A00033472','A00033473','A00033474','A00033475','A00033476','A00033477','A00033478','A00033479','A00033480','A00033481','A00033482','A00033483','A00033484','A00033485','A00033486','A00033487','A00033488','A00033490','A00033491','A00033492','A00033493','A00033494','A00033495','A00033496','A00033497','A00033498','A00033499','A00033500','A00033501','A00033502','A00033503','A00033505','A00033506','A00033508','A00033509','A00033515','A00033516','A00033518','A00033519','A00033520','A00033521','A00033522','A00033523','A00033524','A00033526','A00033527','A00033528','A00033529','A00033530','A00033531','A00033532','A00033533','A00033534','A00033535','A00033537','A00033538','A00033539','A00033540','A00033541','A00033542','A00033543','A00033544','A00033547','A00033548','A00033549','A00033550','A00033551','A00033552','A00033553','A00033554','A00033555','A00033556','A00033557','A00033558','A00033559','A00033560','A00033561','A00033562','A00033563','A00033564','A00033565','A00033566','A00033567','A00033568','A00033569','A00033570','A00033571','A00033572','A00033573','A00033574','A00033575','A00033576','A00033577','A00033578','A00033579','A00033580','A00033581','A00033582','A00033583','A00033584','A00033585','A00033586']
+
+
+def getTR(func):
+	import nibabel as nb
+	from nibabel import load
+	img=nb.load(func)
+	hdr=img.get_header()
+	print 'RUN_TR',hdr.get_zooms()[3]
+	return  hdr.get_zooms()[3]
+
+def getHighpassSigma(TR):
+	highpass_sigma = 100/(2*TR)
+	return highpass_sigma
+	
+def getLowpassSigma(TR):
+	lowpass_sigma = 12.5/(2*TR)
+	return lowpass_sigma
+	
+def extract_noise_components(realigned_file, noise_mask_file, num_components):
+    """Derive components most reflective of physiological noise  """
+    import os
+    from nibabel import load
+    import numpy as np
+    import scipy as sp
+    from scipy.signal import detrend
+    imgseries = load(realigned_file)
+    noise_mask = load(noise_mask_file)
+    voxel_timecourses = imgseries.get_data()[np.nonzero(noise_mask.get_data())]
+    for timecourse in voxel_timecourses:
+        timecourse[:] = detrend(timecourse, type='constant')
+    u,s,v = sp.linalg.svd(voxel_timecourses, full_matrices=False)
+    components_file = os.path.join(os.getcwd(), 'noise_components.txt')
+    np.savetxt(components_file, v[:num_components, :].T)
+    return components_file
+
+def select_volume(filename, which):
+    """Return the middle index of a file
+    """
+    from nibabel import load
+    import numpy as np
+    if which.lower() == 'first':
+        idx = 0
+    elif which.lower() == 'middle':
+        idx = int(np.ceil(load(filename).get_shape()[3]/2))
+    else:
+        raise Exception('unknown value for volume selection : %s'%which)
+    return idx
+
+def create_realign_flow(name='realign'):
+
+    """Realign a time series to the middle volume using spline interpolation
+    Uses MCFLIRT to realign the time series and ApplyWarp to apply the rigid
+    body transformations using spline interpolation (unknown order).
+    """
+    realignflow = pe.Workflow(name=name)
+    inputnode = pe.Node(interface=util.IdentityInterface(fields=['func',
+                                                                 ]),
+                        name='inputspec')
+    outputnode = pe.Node(interface=util.IdentityInterface(fields=[
+                                                               'realigned_file',
+                                                                 ]),
+                        name='outputspec')
+    realigner = pe.Node(fsl.MCFLIRT(save_mats=True, stats_imgs=True),
+                        name='realigner')
+    splitter = pe.Node(fsl.Split(dimension='t'), name='splitter')
+    warper = pe.MapNode(fsl.ApplyWarp(interp='spline'),
+                        iterfield=['in_file', 'premat'],
+                        name='warper')
+    joiner = pe.Node(fsl.Merge(dimension='t'), name='joiner')
+
+    realignflow.connect(inputnode, 'func', realigner, 'in_file')
+    realignflow.connect(inputnode, ('func', select_volume, 'middle'),
+                        realigner, 'ref_vol')
+    realignflow.connect(realigner, 'out_file', splitter, 'in_file')
+    realignflow.connect(realigner, 'mat_file', warper, 'premat')
+    realignflow.connect(realigner, 'variance_img', warper, 'ref_file')
+    realignflow.connect(splitter, 'out_files', warper, 'in_file')
+    realignflow.connect(warper, 'out_file', joiner, 'in_files')
+    realignflow.connect(joiner, 'merged_file', outputnode, 'realigned_file')
+    return realignflow
+
+def create_coregistration_flow(name='coregister'):
+	
+	coregisterflow = pe.Workflow(name=name)
+	
+	inputnode = pe.Node(
+
+    		interface=util.IdentityInterface(
+		
+			fields				=['func', 
+							'anat',]),
+				
+				name			='inputspec')
+				
+				
+	#skullstrip the functional data
+	func_skullstrip = pe.Node(
+	
+		interface=fsl.BET(
+		
+			functional 			= True),
+			
+				name			='stripfunc')
+				
+				
+	mri_convert_func = pe.Node(
+	
+			interface=fs.MRIConvert(
+			
+				out_type 		= 'nii'),
+				
+					name		= "mri_convert_func")
+	
+	
+	mri_convert_anat = pe.Node(
+	
+			interface=fs.MRIConvert(
+			
+				out_type 		= 'nii'),
+				
+					name		= "mri_convert_anat")
+					
+	
+	spmrealign =  pe.Node(
+	
+		interface				=spm.Realign(), 
+		
+			name				="spmrealign")
+			
+	
+	#coregister func to anat
+	spmcoregister = pe.Node(
+	
+		interface=spm.Coregister(
+		
+				cost_function		= 'mi',
+				jobtype			= 'estimate'),
+		 
+		 		name			="spmcoregister")
+	
+
+	art = pe.Node(
+	
+			interface=ra.ArtifactDetect(
+			
+				norm_threshold   		= 1,
+				zintensity_threshold 		= 3,
+				mask_type			= 'file',
+				parameter_source     		= 'SPM',
+				use_differences 		= [True,False],
+				use_norm 			= True),
+				
+					name			= "art")
+	
+	
+	outputnode = pe.Node(
+
+		interface=util.IdentityInterface(
+		
+			fields				=['realigned_file']),
+								 
+			
+				name			='outputspec')
+				
+				
+	coregisterflow.connect(inputnode, 'func', func_skullstrip,'in_file') 
+	coregisterflow.connect(inputnode, 'anat', mri_convert_anat,'in_file')
+	coregisterflow.connect(inputnode, 'func', mri_convert_func,'in_file')
+	coregisterflow.connect(mri_convert_anat,'out_file',spmcoregister,'target')	
+	coregisterflow.connect(mri_convert_func,('out_file', select_volume, 'middle'),spmcoregister,'source')
+	coregisterflow.connect(mri_convert_func,'out_file',spmrealign,'in_files')
+	coregisterflow.connect(spmrealign,'realignment_parameters',art,'realignment_parameters')
+	coregisterflow.connect(spmrealign,'realigned_files',art,'realigned_files')			
+	#coregisterflow.connect(art, outputnode, [
+		
+	#				('outlier_files', 'QualityCheck_files.@outliers'),
+	#				('intensity_files', 'QualityCheck_files.@intensity'),
+	#				('statistic_files', 'QualityCheck_files.@statistics'),
+					
+	#				]),
+	
+	return coregisterflow
+
+
+
+#initialize main workflow
+restpreproc = pe.Workflow(
+
+		base_dir 				= subjects_dir + '/Analysis/nipype',
+		
+			name				='restpreproc')
+
+
+# Define nodes
+infosource = pe.Node(
+
+		interface=util.IdentityInterface(
+		
+			fields				= ['subject_id']),
+			iterables 			= ('subject_id', subjects_list),
+			
+				name			= "infosource")
+				
+
+datagrabber = pe.Node(
+
+		interface=nio.DataGrabber(
+		
+			infields			= ['subject_id'],
+			outfields			= ['func', 'anat']),
+			
+				base_directory		= subjects_dir,
+				name 			= 'datagrabber')
+
+datagrabber.inputs.template_args			= dict(	func	= [[ 'subject_id' ]],
+								anat	= [[ 'subject_id' ]],
+								)
+								
+datagrabber.inputs.template				= '*'
+datagrabber.inputs.field_template 			= dict	(func = subjects_dir + '/Data/func/%s/Study20120830/rest_0001/REST.nii.gz',
+								 anat = subjects_dir + '/Data/anat/%s/Study20120830/mprage_0001/MPRAGE.nii.gz',
+								 )
+								 
+datagrabber.inputs.sorted 				= True
+
+
+
+
+inputnode = pe.Node(
+
+		interface=util.IdentityInterface(
+		
+			fields				=['anat',
+							 'func',
+							 'num_noise_components',
+							 'highpass_sigma',
+							 'lowpass_sigma']
+							 
+							 ),
+
+				name			='inputnode')
+
+
+inputnode.inputs.num_noise_components = 6
+
+
+
+
+
+BET = pe.Node(
+
+		interface=fsl.BET(),
+		
+			
+				name 			= 'BET')
+				
+
+
+
+slicetimer = pe.Node(
+
+		fsl.SliceTimer(),		 
+		 
+		 		name			='slicetimer')
+
+
+realigner = create_realign_flow()
+
+coregister = pe.Node(
+
+		fsl.FLIRT(
+			
+			bins				=640,
+			dof				=12,
+			cost_func			='mutualinfo'),
+			
+				name 			='FLIRT')
+				
+
+
+
+tsnr = pe.Node(
+		
+		TSNR(
+		
+			regress_poly			=2),
+			 
+			 	name			='tsnr')
+
+
+getthresh = pe.Node(
+
+		interface=fsl.ImageStats(
+		
+			op_string			='-p 98'),
+
+				name			='getthreshold')
+
+
+
+
+
+
+threshold_stddev = pe.Node(
+
+		fsl.Threshold(), 
+				
+				name			='threshold')
+
+
+compcor = pe.Node(
+
+		util.Function(
+		
+			input_names			=['realigned_file',
+							'noise_mask_file',
+							'num_components'],
+			output_names			=['noise_components'],
+			
+			function			=extract_noise_components),
+			
+				name			='compcorr')
+
+getTR = pe.Node(
+
+		util.Function(
+		
+			input_names 			= ['func'],
+			output_names			= ['TR'],
+			
+			function 			= getTR),
+			
+				name 			= 'getTR')
+				
+gethighpass = pe.Node(
+
+		util.Function(
+		
+			input_names			= ['TR'],
+			output_names			= ['highpass_sigma'],
+			
+			function 			=getHighpassSigma),
+			
+				name			='gethighpass')
+				
+				
+getlowpass = pe.Node(
+
+		util.Function(
+		
+			input_names			= ['TR'],
+			output_names			= ['lowpass_sigma'],
+			
+			function 			=getLowpassSigma),
+			
+				name			='getlowpass')
+
+
+
+remove_noise = pe.Node(
+
+		fsl.FilterRegressor(
+		
+			filter_all			=True),
+
+				name			='remove_noise')
+
+
+
+bandpass_filter = pe.Node(
+
+		fsl.TemporalFilter(),
+
+				name			='bandpass_filter')
+
+
+outputnode = pe.Node(
+
+		interface=util.IdentityInterface(
+		
+			fields			=[   	'noise_mask_file',
+							'filtered_file',
+							'skull_stripped_anat',
+							'regmatrix',
+							'realignment_parameters',
+                                                              ]),
+				
+				name			='outputspec')
+
+datasink = pe.Node(nio.DataSink(),
+				
+			name 				= "datasink")
+
+datasink.inputs.base_directory 				= subjects_dir + '/Analysis/nipype/'
+
+
+
+# Define connections
+restpreproc.connect	(infosource, 'subject_id', datagrabber, 'subject_id')
+restpreproc.connect	(datagrabber, 'anat', inputnode, 'anat')
+restpreproc.connect	(datagrabber, 'func', inputnode, 'func')
+restpreproc.connect	(datagrabber,'func',getTR,'func')
+restpreproc.connect	(getTR,'TR',slicetimer,'time_repetition')
+restpreproc.connect	(getTR,'TR',gethighpass,'TR')
+restpreproc.connect	(getTR,'TR',getlowpass,'TR')
+restpreproc.connect	(gethighpass,'highpass_sigma',inputnode,'highpass_sigma')
+restpreproc.connect	(getlowpass,'lowpass_sigma',inputnode,'lowpass_sigma')
+restpreproc.connect	(inputnode, 'func', slicetimer, 'in_file')
+restpreproc.connect	(inputnode, 'anat', BET, 'in_file')
+restpreproc.connect	(BET, 'out_file', outputnode, 'skull_stripped_anat')
+restpreproc.connect	(slicetimer, 'slice_time_corrected_file',  realigner, 'inputspec.func')
+restpreproc.connect	(realigner, 'outputspec.realigned_file', tsnr, 'in_file')
+restpreproc.connect	(tsnr, 'stddev_file', threshold_stddev, 'in_file')
+restpreproc.connect	(tsnr, 'stddev_file', getthresh, 'in_file')
+restpreproc.connect	(getthresh, 'out_stat', threshold_stddev, 'thresh')
+restpreproc.connect	(threshold_stddev, 'out_file',compcor, 'noise_mask_file')
+restpreproc.connect	(realigner, 'outputspec.realigned_file',compcor, 'realigned_file')
+restpreproc.connect	(inputnode, 'num_noise_components',compcor, 'num_components')
+restpreproc.connect	(tsnr, 'detrended_file',remove_noise, 'in_file')
+restpreproc.connect	(compcor, 'noise_components',remove_noise, 'design_file')
+restpreproc.connect	(inputnode, 'highpass_sigma',bandpass_filter, 'highpass_sigma')
+restpreproc.connect	(inputnode, 'lowpass_sigma',bandpass_filter, 'lowpass_sigma')
+restpreproc.connect	(remove_noise, 'out_file', bandpass_filter, 'in_file')
+restpreproc.connect	(threshold_stddev, 'out_file',outputnode, 'noise_mask_file')
+restpreproc.connect	(bandpass_filter, 'out_file',outputnode, 'filtered_file')
+restpreproc.connect	(BET,'out_file',coregister,'reference')
+restpreproc.connect	(realigner,'outputspec.realigned_file',coregister,'in_file')
+restpreproc.connect	(coregister,'out_matrix_file',outputnode,'regmatrix')
+
+
+#invoke if the separate coregistration step is desired
+#spmcoregister = create_coregistration_flow()
+#restpreproc.connect	(BET, 'out_file', spmcoregister,'inputspec.anat')
+#restpreproc.connect	(slicetimer, 'slice_time_corrected_file', spmcoregister,'inputspec.func')
+
+
+	
+	
+
+metaflow = pe.Workflow(
+
+			base_dir 			= subjects_dir  + '/Analysis/nipype/',
+			
+				name			= 'preproc')
+
+metaflow.connect([(
+			restpreproc,datasink,[
+			
+						('outputspec.filtered_file','filtered_func_data.@warped'),
+						('outputspec.skull_stripped_anat','skull_stripped_anat.@anat'),
+						('outputspec.regmatrix','regmatrix.@regmatrix')
+						],
+						) ])
+
+	
+	
+
+try:
+	metaflow.write_graph(graph2use='flat')
+	metaflow.run(plugin='MultiProc', plugin_args={'n_procs' : 12})
+	print '==========================\n'
+	print "Workflow 'PREPROC' Completed Normally \n"
+	print "==========================\n"
+	
+except:
+	print "==========================\n"
+	print "Workflow 'PREPROC' Terminated with Errors.\n"
+	print "==========================\n"
+
+
+
