@@ -1,0 +1,486 @@
+#!/bin/env/python
+
+import nipype.interfaces.fsl as fsl          # fsl
+from nipype.algorithms.misc import TSNR
+import nipype.interfaces.utility as util     # utility
+import nipype.pipeline.engine as pe          # pypeline engine
+import nipype.algorithms.rapidart as ra      # artifact detection
+import nipype.interfaces.io as nio             	# i/o routines
+import nibabel as nb
+from nipype.interfaces import spm
+import nipype.interfaces.freesurfer as fs
+
+
+subjects_dir = 'DTI.01'
+
+subjects_list = [] 
+
+def getTR(func):
+	import nibabel as nb
+	from nibabel import load
+	img=nb.load(func)
+	hdr=img.get_header()
+	print 'RUN_TR',hdr.get_zooms()[3]
+	return  hdr.get_zooms()[3]
+
+def getHighpassSigma(TR):
+	highpass_sigma = 100/(2*TR)
+	return highpass_sigma
+	
+def getLowpassSigma(TR):
+	lowpass_sigma = 12.5/(2*TR)
+	return lowpass_sigma
+	
+def extract_noise_components(realigned_file, noise_mask_file, num_components):
+    """Derive components most reflective of physiological noise  """
+    import os
+    from nibabel import load
+    import numpy as np
+    import scipy as sp
+    from scipy.signal import detrend
+    imgseries = load(realigned_file)
+    noise_mask = load(noise_mask_file)
+    voxel_timecourses = imgseries.get_data()[np.nonzero(noise_mask.get_data())]
+    for timecourse in voxel_timecourses:
+        timecourse[:] = detrend(timecourse, type='constant')
+    u,s,v = sp.linalg.svd(voxel_timecourses, full_matrices=False)
+    components_file = os.path.join(os.getcwd(), 'noise_components.txt')
+    np.savetxt(components_file, v[:num_components, :].T)
+    return components_file
+
+def select_volume(filename, which):
+    """Return the middle index of a file
+    """
+    from nibabel import load
+    import numpy as np
+    if which.lower() == 'first':
+        idx = 0
+    elif which.lower() == 'middle':
+        idx = int(np.ceil(load(filename).get_shape()[3]/2))
+    else:
+        raise Exception('unknown value for volume selection : %s'%which)
+    return idx
+
+def create_realign_flow(name='realign'):
+
+    """Realign a time series to the middle volume using spline interpolation
+    Uses MCFLIRT to realign the time series and ApplyWarp to apply the rigid
+    body transformations using spline interpolation (unknown order).
+    """
+    realignflow = pe.Workflow(name=name)
+    inputnode = pe.Node(interface=util.IdentityInterface(fields=['func',
+                                                                 ]),
+                        name='inputspec')
+    outputnode = pe.Node(interface=util.IdentityInterface(fields=[
+                                                               'realigned_file',
+                                                                 ]),
+                        name='outputspec')
+    realigner = pe.Node(fsl.MCFLIRT(save_mats=True, stats_imgs=True),
+                        name='realigner')
+    splitter = pe.Node(fsl.Split(dimension='t'), name='splitter')
+    warper = pe.MapNode(fsl.ApplyWarp(interp='spline'),
+                        iterfield=['in_file', 'premat'],
+                        name='warper')
+    joiner = pe.Node(fsl.Merge(dimension='t'), name='joiner')
+
+    realignflow.connect(inputnode, 'func', realigner, 'in_file')
+    realignflow.connect(inputnode, ('func', select_volume, 'middle'),
+                        realigner, 'ref_vol')
+    realignflow.connect(realigner, 'out_file', splitter, 'in_file')
+    realignflow.connect(realigner, 'mat_file', warper, 'premat')
+    realignflow.connect(realigner, 'variance_img', warper, 'ref_file')
+    realignflow.connect(splitter, 'out_files', warper, 'in_file')
+    realignflow.connect(warper, 'out_file', joiner, 'in_files')
+    realignflow.connect(joiner, 'merged_file', outputnode, 'realigned_file')
+    return realignflow
+
+def create_coregistration_flow(name='coregister'):
+	
+	coregisterflow = pe.Workflow(name=name)
+	
+	inputnode = pe.Node(
+
+    		interface=util.IdentityInterface(
+		
+			fields				=['func', 
+							'anat',]),
+				
+				name			='inputspec')
+				
+				
+	#skullstrip the functional data
+	func_skullstrip = pe.Node(
+	
+		interface=fsl.BET(
+		
+			functional 			= True),
+			
+				name			='stripfunc')
+				
+				
+	mri_convert_func = pe.Node(
+	
+			interface=fs.MRIConvert(
+			
+				out_type 		= 'nii'),
+				
+					name		= "mri_convert_func")
+	
+	
+	mri_convert_anat = pe.Node(
+	
+			interface=fs.MRIConvert(
+			
+				out_type 		= 'nii'),
+				
+					name		= "mri_convert_anat")
+					
+	
+	spmrealign =  pe.Node(
+	
+		interface				=spm.Realign(), 
+		
+			name				="spmrealign")
+			
+	
+	#coregister func to anat
+	spmcoregister = pe.Node(
+	
+		interface=spm.Coregister(
+		
+				cost_function		= 'mi',
+				jobtype			= 'estimate'),
+		 
+		 		name			="spmcoregister")
+	
+
+	art = pe.Node(
+	
+			interface=ra.ArtifactDetect(
+			
+				norm_threshold   		= 1,
+				zintensity_threshold 		= 3,
+				mask_type			= 'file',
+				parameter_source     		= 'SPM',
+				use_differences 		= [True,False],
+				use_norm 			= True),
+				
+					name			= "art")
+	
+	
+	outputnode = pe.Node(
+
+		interface=util.IdentityInterface(
+		
+			fields				=['realigned_file']),
+								 
+			
+				name			='outputspec')
+				
+				
+	coregisterflow.connect(inputnode, 'func', func_skullstrip,'in_file') 
+	coregisterflow.connect(inputnode, 'anat', mri_convert_anat,'in_file')
+	coregisterflow.connect(inputnode, 'func', mri_convert_func,'in_file')
+	coregisterflow.connect(mri_convert_anat,'out_file',spmcoregister,'target')	
+	coregisterflow.connect(mri_convert_func,('out_file', select_volume, 'middle'),spmcoregister,'source')
+	coregisterflow.connect(mri_convert_func,'out_file',spmrealign,'in_files')
+	coregisterflow.connect(spmrealign,'realignment_parameters',art,'realignment_parameters')
+	coregisterflow.connect(spmrealign,'realigned_files',art,'realigned_files')			
+	#coregisterflow.connect(art, outputnode, [
+		
+	#				('outlier_files', 'QualityCheck_files.@outliers'),
+	#				('intensity_files', 'QualityCheck_files.@intensity'),
+	#				('statistic_files', 'QualityCheck_files.@statistics'),
+					
+	#				]),
+	
+	return coregisterflow
+
+
+
+#initialize main workflow
+restpreproc = pe.Workflow(
+
+		base_dir 				= subjects_dir + '/Analysis/nipype',
+		
+			name				='restpreproc')
+
+
+# Define nodes
+infosource = pe.Node(
+
+		interface=util.IdentityInterface(
+		
+			fields				= ['subject_id']),
+			iterables 			= ('subject_id', subjects_list),
+			
+				name			= "infosource")
+				
+
+datagrabber = pe.Node(
+
+		interface=nio.DataGrabber(
+		
+			infields			= ['subject_id'],
+			outfields			= ['func', 'anat']),
+			
+				base_directory		= subjects_dir,
+				name 			= 'datagrabber')
+
+datagrabber.inputs.template_args			= dict(	func	= [[ 'subject_id' ]],
+								anat	= [[ 'subject_id' ]],
+								)
+								
+datagrabber.inputs.template				= '*'
+datagrabber.inputs.field_template 			= dict	(func = subjects_dir + '/Data/func/%s/Study20120830/rest_0001/REST.nii.gz',
+								 anat = subjects_dir + '/Data/anat/%s/Study20120830/mprage_0001/MPRAGE.nii.gz',
+								 )
+								 
+datagrabber.inputs.sorted 				= True
+
+
+
+
+inputnode = pe.Node(
+
+		interface=util.IdentityInterface(
+		
+			fields				=['anat',
+							 'func',
+							 'num_noise_components',
+							 'highpass_sigma',
+							 'lowpass_sigma']
+							 
+							 ),
+
+				name			='inputnode')
+
+
+inputnode.inputs.num_noise_components = 6
+
+
+
+
+
+BET = pe.Node(
+
+		interface=fsl.BET(),
+		
+			
+				name 			= 'BET')
+				
+
+
+
+slicetimer = pe.Node(
+
+		fsl.SliceTimer(),		 
+		 
+		 		name			='slicetimer')
+
+
+realigner = create_realign_flow()
+
+coregister = pe.Node(
+
+		fsl.FLIRT(
+			
+			bins				=640,
+			dof				=12,
+			cost_func			='mutualinfo'),
+			
+				name 			='FLIRT')
+				
+
+
+
+tsnr = pe.Node(
+		
+		TSNR(
+		
+			regress_poly			=2),
+			 
+			 	name			='tsnr')
+
+
+getthresh = pe.Node(
+
+		interface=fsl.ImageStats(
+		
+			op_string			='-p 98'),
+
+				name			='getthreshold')
+
+
+
+
+
+
+threshold_stddev = pe.Node(
+
+		fsl.Threshold(), 
+				
+				name			='threshold')
+
+
+compcor = pe.Node(
+
+		util.Function(
+		
+			input_names			=['realigned_file',
+							'noise_mask_file',
+							'num_components'],
+			output_names			=['noise_components'],
+			
+			function			=extract_noise_components),
+			
+				name			='compcorr')
+
+getTR = pe.Node(
+
+		util.Function(
+		
+			input_names 			= ['func'],
+			output_names			= ['TR'],
+			
+			function 			= getTR),
+			
+				name 			= 'getTR')
+				
+gethighpass = pe.Node(
+
+		util.Function(
+		
+			input_names			= ['TR'],
+			output_names			= ['highpass_sigma'],
+			
+			function 			=getHighpassSigma),
+			
+				name			='gethighpass')
+				
+				
+getlowpass = pe.Node(
+
+		util.Function(
+		
+			input_names			= ['TR'],
+			output_names			= ['lowpass_sigma'],
+			
+			function 			=getLowpassSigma),
+			
+				name			='getlowpass')
+
+
+
+remove_noise = pe.Node(
+
+		fsl.FilterRegressor(
+		
+			filter_all			=True),
+
+				name			='remove_noise')
+
+
+
+bandpass_filter = pe.Node(
+
+		fsl.TemporalFilter(),
+
+				name			='bandpass_filter')
+
+
+outputnode = pe.Node(
+
+		interface=util.IdentityInterface(
+		
+			fields			=[   	'noise_mask_file',
+							'filtered_file',
+							'skull_stripped_anat',
+							'regmatrix',
+							'realignment_parameters',
+                                                              ]),
+				
+				name			='outputspec')
+
+datasink = pe.Node(nio.DataSink(),
+				
+			name 				= "datasink")
+
+datasink.inputs.base_directory 				= subjects_dir + '/Analysis/nipype/'
+
+
+
+# Define connections
+restpreproc.connect	(infosource, 'subject_id', datagrabber, 'subject_id')
+restpreproc.connect	(datagrabber, 'anat', inputnode, 'anat')
+restpreproc.connect	(datagrabber, 'func', inputnode, 'func')
+restpreproc.connect	(datagrabber,'func',getTR,'func')
+restpreproc.connect	(getTR,'TR',slicetimer,'time_repetition')
+restpreproc.connect	(getTR,'TR',gethighpass,'TR')
+restpreproc.connect	(getTR,'TR',getlowpass,'TR')
+restpreproc.connect	(gethighpass,'highpass_sigma',inputnode,'highpass_sigma')
+restpreproc.connect	(getlowpass,'lowpass_sigma',inputnode,'lowpass_sigma')
+restpreproc.connect	(inputnode, 'func', slicetimer, 'in_file')
+restpreproc.connect	(inputnode, 'anat', BET, 'in_file')
+restpreproc.connect	(BET, 'out_file', outputnode, 'skull_stripped_anat')
+restpreproc.connect	(slicetimer, 'slice_time_corrected_file',  realigner, 'inputspec.func')
+restpreproc.connect	(realigner, 'outputspec.realigned_file', tsnr, 'in_file')
+restpreproc.connect	(tsnr, 'stddev_file', threshold_stddev, 'in_file')
+restpreproc.connect	(tsnr, 'stddev_file', getthresh, 'in_file')
+restpreproc.connect	(getthresh, 'out_stat', threshold_stddev, 'thresh')
+restpreproc.connect	(threshold_stddev, 'out_file',compcor, 'noise_mask_file')
+restpreproc.connect	(realigner, 'outputspec.realigned_file',compcor, 'realigned_file')
+restpreproc.connect	(inputnode, 'num_noise_components',compcor, 'num_components')
+restpreproc.connect	(tsnr, 'detrended_file',remove_noise, 'in_file')
+restpreproc.connect	(compcor, 'noise_components',remove_noise, 'design_file')
+restpreproc.connect	(inputnode, 'highpass_sigma',bandpass_filter, 'highpass_sigma')
+restpreproc.connect	(inputnode, 'lowpass_sigma',bandpass_filter, 'lowpass_sigma')
+restpreproc.connect	(remove_noise, 'out_file', bandpass_filter, 'in_file')
+restpreproc.connect	(threshold_stddev, 'out_file',outputnode, 'noise_mask_file')
+restpreproc.connect	(bandpass_filter, 'out_file',outputnode, 'filtered_file')
+restpreproc.connect	(BET,'out_file',coregister,'reference')
+restpreproc.connect	(realigner,'outputspec.realigned_file',coregister,'in_file')
+restpreproc.connect	(coregister,'out_matrix_file',outputnode,'regmatrix')
+
+
+#invoke if the separate coregistration step is desired
+#spmcoregister = create_coregistration_flow()
+#restpreproc.connect	(BET, 'out_file', spmcoregister,'inputspec.anat')
+#restpreproc.connect	(slicetimer, 'slice_time_corrected_file', spmcoregister,'inputspec.func')
+
+
+	
+	
+
+metaflow = pe.Workflow(
+
+			base_dir 			= subjects_dir  + '/Analysis/nipype/',
+			
+				name			= 'preproc')
+
+metaflow.connect([(
+			restpreproc,datasink,[
+			
+						('outputspec.filtered_file','filtered_func_data.@warped'),
+						('outputspec.skull_stripped_anat','skull_stripped_anat.@anat'),
+						('outputspec.regmatrix','regmatrix.@regmatrix')
+						],
+						) ])
+
+	
+	
+
+try:
+	metaflow.write_graph(graph2use='flat')
+	metaflow.run(plugin='MultiProc', plugin_args={'n_procs' : 12})
+	print '==========================\n'
+	print "Workflow 'PREPROC' Completed Normally \n"
+	print "==========================\n"
+	
+except:
+	print "==========================\n"
+	print "Workflow 'PREPROC' Terminated with Errors.\n"
+	print "==========================\n"
+
+
+
