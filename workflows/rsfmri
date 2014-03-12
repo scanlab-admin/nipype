@@ -232,8 +232,8 @@ datagrabber.inputs.template_args			= dict(	func	= [[ 'subject_id' ]],
 								)
 								
 datagrabber.inputs.template				= '*'
-datagrabber.inputs.field_template 			= dict	(func = subjects_dir + '/Data/func/%s/Study20120830/rest_0001/REST.nii.gz',
-								 anat = subjects_dir + '/Data/anat/%s/Study20120830/mprage_0001/MPRAGE.nii.gz',
+datagrabber.inputs.field_template 			= dict	(func = subjects_dir + '/Data/func/%s/REST.nii.gz',
+								 anat = subjects_dir + '/Data/anat/%s/MPRAGE.nii.gz',
 								 )
 								 
 datagrabber.inputs.sorted 				= True
