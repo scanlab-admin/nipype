@@ -367,7 +367,7 @@ l1pipeline.connect(realign,'realignment_parameters',stimcor,'realignment_paramet
 
 # run SPM's smoothing
 volsmooth = pe.Node(interface=spm.Smooth(), name="volsmooth")
-volsmooth.inputs.fwhm = [6,6,6]
+volsmooth.inputs.fwhm = [5,5,5]
 
 #**************
 l1pipeline.connect(realign,'realigned_files',volsmooth,'in_files')
